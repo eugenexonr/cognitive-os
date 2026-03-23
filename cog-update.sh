@@ -53,8 +53,8 @@ FRAMEWORK_FILES=(
   "drivers/claude-code/cos-insight/SKILL.md"
   "drivers/claude-code/cos-capture/SKILL.md"
   "drivers/cursor/.cursorrules.template"
-  "docs/GETTING-STARTED.md"
-  "docs/ARCHITECTURE.md"
+  "docs/concepts.md"
+  "docs/architecture.md"
   "README.md"
   "PROJECT-PLAN.md"
 )

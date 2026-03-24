@@ -1,63 +1,67 @@
-# Cognitive OS
+<p align="center">
+  <h1 align="center">Cognitive OS</h1>
+  <p align="center">
+    <strong>Your AI learns from what worked, what failed, and why.</strong>
+  </p>
+  <p align="center">
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+    <a href="https://github.com/eugenexonr/cognitive-os/stargazers"><img src="https://img.shields.io/github/stars/eugenexonr/cognitive-os?style=social" alt="Stars"></a>
+    <a href="docs/concepts.md">Docs</a> · <a href="examples/">Examples</a> · <a href="drivers/">Drivers</a>
+  </p>
+</p>
 
-**Identity and learning layer for AI agents.**
+---
 
-Your AI forgets everything between sessions. It makes the same mistakes you corrected last week. It contradicts its own decisions without noticing. It has no persistent identity — every conversation starts from zero.
+## Quick Start
 
-Cognitive OS fixes this with 4 core files, 3 protocols, and platform-specific drivers.
+```bash
+git clone https://github.com/eugenexonr/cognitive-os.git
+cp -r cognitive-os/templates/ ~/cognitive-os/
+```
+
+Edit `~/cognitive-os/kernel.md` — set your identity and priorities. Then tell your AI: **"Boot"**.
+
+**Claude Code** — copy skills: `cp -r cognitive-os/drivers/claude-code/* ~/.claude/skills/`
+**Cursor** — copy rules: `cp cognitive-os/drivers/cursor/.cursorrules ~/your-project/`
+**ChatGPT** — paste kernel.md into Custom Instructions
+**Any LLM** — add to system prompt: `"Read ~/cognitive-os/kernel.md at session start"`
 
 ---
 
 ## What This Is
 
-Cognitive OS is not another agent framework. It doesn't run tools, send messages, or automate tasks. It's the **layer above** execution — the part that decides HOW to think, remembers WHAT it learned, and catches WHEN it drifts.
+Memory tools remember WHAT happened. Cognitive OS learns WHY it mattered.
 
 ```
 ┌─────────────────────────────────────┐
 │  Your request                       │
 ├─────────────────────────────────────┤
 │  COGNITIVE OS (this project)        │
-│  Identity · Learning · Self-repair  │
+│  Learning · Self-repair · Identity  │
 ├─────────────────────────────────────┤
 │  Any AI platform                    │
 │  Claude · GPT · Codex · Cursor ·    │
-│  OpenClaw · LangChain · anything    │
+│  LangChain · anything              │
 └─────────────────────────────────────┘
 ```
 
-Works with any LLM. Works with any agent framework. Model-agnostic by design.
+4 markdown files. 3 protocols. Zero dependencies. Model-agnostic.
 
 ## The Problem
 
 | Without Cognitive OS | With Cognitive OS |
 |---|---|
-| AI repeats mistakes you corrected | AI records predictions, checks outcomes, updates principles |
-| Every session starts from scratch | Boot protocol loads identity + accumulated knowledge |
+| AI repeats mistakes you corrected last week | AI records predictions, checks outcomes, updates principles |
+| Every session starts from scratch | Boot protocol loads accumulated knowledge |
 | AI contradicts itself mid-conversation | Anti-drift binary checks catch self-contradiction |
-| "Be helpful" is the only identity | Kernel weights create a decision framework |
+| "Be helpful" is the only guidance | Kernel weights create a decision framework |
 | Insights are lost between sessions | Fractal-validated patterns persist and compound |
 
-## Core Components
+## How It Works
 
-### 1. Kernel (`kernel.md`)
-Your AI's identity and decision framework. Not personality ("be friendly") — functional weights that influence decisions.
+### 1. Decision Loop — prediction-error learning
 
-```markdown
-### W0: Calibrated Uncertainty
-Before all else — know when you don't know.
-"I'm not sure" > confidently wrong.
-
-### W3: Simplicity
-Complexity = debt with compounding interest.
-Fewer parts > more features.
-```
-
-When W0 conflicts with W3, W0 wins. These weights are yours to define.
-
-The kernel evolves through evidence, not accumulation. Changes require proof from 2+ decisions with verified outcomes.
-
-### 2. Decision Loop (`decisions.md`)
-Every significant decision recorded with a prediction and confidence level. When the outcome is known, compare to prediction.
+Every significant decision gets a prediction with confidence %. When the outcome is known, compare. The gap is where learning happens.
 
 ```markdown
 ## D016: Switch to Supplier B after evidence-based evaluation
@@ -67,128 +71,41 @@ Every significant decision recorded with a prediction and confidence level. When
 - **Calibration:** Confidence was accurate. Adapter pattern (D002) paid off.
 ```
 
-Over time, you calibrate: are you consistently over-confident? Under-confident? The prediction-outcome gap is where learning happens.
+Over 73 decisions, calibration patterns emerge: technical predictions (85-90%) are accurate. Market predictions (50-60%) show appropriate humility. Without tracking, both sound equally confident.
 
-We haven't found another AI framework that does this.
+### 2. Anti-Drift — self-correction that works during drift
 
-### 3. Insight Mechanism (`insight.md`)
-Pattern discovery through prediction-error, not pattern matching.
+**Binary checks > judgment rules.** A judgment rule ("cite the relevant principle") fails during drift because reasoning is compromised. A binary check ("did I verify this? yes/no") requires only honesty.
+
+Three checks, always active:
+1. **Source-or-`(?)`**: Every number and key assumption must have a source. No source → write `(?)`
+2. **Re-read before conclusions**: Re-read kernel.md before recommendations
+3. **Correction ≠ inversion**: After correction, state what changed AND what didn't
+
+Real example: AI stated "$0 deposit" for a supplier. Anti-drift: source? No source → `(?)`. Actual answer: $1,000 minimum.
+
+### 3. Insight Mechanism — patterns validated across scales
 
 ```markdown
 ## I020: Exhaustive analysis >> incremental debugging
-- **Expectation:** Incremental debugging (hypothesis → fix → test) is efficient
-- **Reality:** 3 incremental attempts missed root cause.
-  One exhaustive analysis found it in a single pass.
-- **Delta:** When hypothesis space is uncertain,
-  evidence collection > hypothesis testing
+- **Expectation:** Incremental debugging is efficient
+- **Reality:** 3 attempts missed root cause. One exhaustive analysis found it in a single pass.
 - **Fractal check:** Code ✓ Debugging ✓ Business ✓ → META
 ```
 
-Every insight is validated across abstraction levels (variable → module → service → business). If the pattern holds at all levels, it's marked META — a principle, not a tactic.
+Every insight is tested across abstraction levels (variable → module → service → business). If the pattern holds at all levels, it's a principle, not a tactic.
 
-### 4. Anti-Drift (`protocols/anti-drift.md`)
-Self-correction mechanisms that work **when the AI is already drifting**.
+### 4. Kernel — identity through weighted trade-offs
 
-Key insight: **binary checks > judgment rules**. A judgment rule ("cite the relevant weight") requires reasoning — but reasoning is compromised during drift. A binary check ("did I verify this number? yes/no") requires only honesty.
+Not personality ("be friendly") — functional weights that resolve conflicts:
 
-Three binary checks:
-1. **Source-or-`(?)`**: Every number must have a source. No source → write `(?)`
-2. **Re-read before conclusions**: Re-read kernel.md before any recommendation
-3. **Correction ≠ inversion**: After correction, state what changed AND what didn't
-
-### 5. Boot Protocol (`protocols/boot.md`)
-Session initialization that loads accumulated knowledge:
-1. Read kernel → load identity and weights
-2. Read insights → load patterns
-3. Check pending decisions → update outcomes
-4. Calibrate → state readiness and uncertainty
-
----
-
-## Quick Start (15 minutes)
-
-### 1. Copy the templates
-
-```bash
-git clone https://github.com/eugenexonr/cognitive-os.git
-cp -r cognitive-os/templates/ ~/cognitive-os/
+```markdown
+W0: Calibrated Uncertainty — "I'm not sure" > confidently wrong
+W1: Structural Correctness — make the wrong thing hard to do
+W3: Simplicity — fewer parts > more features
 ```
 
-### 2. Customize your kernel
-
-Open `kernel.md` and fill in:
-- **Identity:** Who is this AI in your context? ("Senior backend engineer", "CTO of early-stage startup", "Research assistant for PhD")
-- **Weights:** Reorder W0-W5 based on your priorities. Add domain-specific weights if needed.
-- **Anti-patterns:** Start empty. Add entries as you discover failure patterns.
-
-### 3. Connect to your AI platform
-
-Choose a driver for your platform:
-
-**Claude Code** — copy skills to `~/.claude/skills/`:
-```bash
-cp -r cognitive-os/drivers/claude-code/* ~/.claude/skills/
-```
-
-**Cursor** — copy rules:
-```bash
-cp cognitive-os/drivers/cursor/.cursorrules ~/your-project/
-```
-
-**ChatGPT** — paste kernel into Custom Instructions
-
-**Any LLM** — add to system prompt: "Read ~/my-cognitive-os/kernel.md at session start. Follow boot protocol."
-
-### 4. Start a session
-
-Tell your AI: "Boot" or "Load cognitive OS" or just start working — if using Claude Code skills, the boot skill triggers automatically.
-
-### 5. Use it
-
-Work normally. The OS operates through three habits:
-- **Decisions:** When making a significant choice, record it with a prediction
-- **Insights:** When you notice a pattern, validate it across abstraction levels
-- **Anti-drift:** Let the binary checks catch you when you slip
-
-### Staying Updated
-
-```bash
-./cog-update.sh          # Updates framework files, protects your kernel/decisions/insights
-./cog-update.sh --check  # Check for updates without applying
-```
-
----
-
-## Drivers (Platform Adapters)
-
-Cognitive OS is model-agnostic. Drivers adapt it to specific platforms:
-
-| Platform | Driver | How it works |
-|---|---|---|
-| Claude Code | Skills (SKILL.md) | `/boot`, `/boris`, `/decide` commands |
-| Cursor | .cursorrules | Full rules file with boot, anti-drift, Boris, decision recording |
-| Codex | Instructions | Task preamble template with OS context + review assertions (beta) |
-| ChatGPT | Custom Instructions | Kernel summary in system prompt |
-| OpenClaw | Skills | OpenClaw skill format wrapping OS protocols (planned) |
-| Any LLM | System prompt | "Read kernel.md at session start" |
-
-Same OS, different execution layers. Switch models without losing identity or learning.
-
----
-
-## Why Not Just Use [X]?
-
-**"Why not just a good system prompt?"**
-A prompt tells the AI what to do. Cognitive OS teaches it to learn. Prompts are static. The kernel evolves through evidence. Decisions accumulate. Insights compound. After 73 decisions and 51 insights, the OS knows things no prompt could contain.
-
-**"Why not OpenClaw / LangChain / CrewAI?"**
-Those are execution frameworks (HOW to run tools). Cognitive OS is a learning framework (HOW to think and improve). They're complementary — you can run Cognitive OS on top of OpenClaw.
-
-**"Why not just CLAUDE.md / .cursorrules?"**
-Those are configuration files. They don't learn, don't track decisions, don't validate insights, don't catch drift. Cognitive OS includes a config layer but adds prediction-error learning, fractal validation, and self-correction.
-
-**"Isn't this just markdown files?"**
-A codebase is "just text files." The value is in the structure, relationships, and protocols that make the files work together. The kernel alone is a config file. Kernel + decisions + insights + anti-drift + boot = a system that compounds knowledge over time.
+When W0 conflicts with W3, W0 wins. The kernel evolves through evidence — changes require proof from 2+ decisions.
 
 ---
 
@@ -198,32 +115,32 @@ Built and tested over 3 months across 5 production projects. Not theoretical.
 
 - **73 decisions** with predictions and tracked outcomes
 - **51 insights** with fractal validation (15+ META patterns)
-- **Anti-drift caught real errors:** AI contradicted its own decision 5 days later — binary check caught it (I031)
-- **Boris protocol:** 3 failed incremental debugging attempts → 1 Boris pass found root cause (I020)
-- **Kernel evolution:** v1.0 → v1.2 with evidence-gated changes, 5 proposed changes rejected for lack of evidence
-- **Calibration data:** high-confidence technical decisions (85-90%) confirmed. Low-confidence market decisions (50-60%) showed appropriate humility. See `examples/` for real numbers.
+- **Anti-drift caught real errors:** AI contradicted its own decision 5 days later — binary check caught it
+- **Boris protocol:** 3 failed debugging attempts → 1 exhaustive pass found root cause
+- **Calibration data:** see `examples/solo-founder/` for real numbers with actual margins, CPCs, and outcomes
 
 ## How This Compares
 
 | Tool | What it does | What Cognitive OS adds |
 |------|-------------|----------------------|
-| **claude-mem / Engram** | Remembers past sessions (memory persistence) | Learns from mistakes (prediction-error calibration) |
-| **mem0** | Universal memory layer for agents (graph + vector) | Identity + decision weights + self-correction |
-| **CLAUDE.md / .cursorrules** | Static configuration files | Evolving kernel + decision tracking + anti-drift |
+| **claude-mem / Engram** | Remembers past sessions | Learns from mistakes (prediction-error calibration) |
+| **mem0** | Universal memory layer (graph + vector) | Decision weights + self-correction + calibration |
+| **CLAUDE.md / .cursorrules** | Static configuration | Evolving kernel + decision tracking + anti-drift |
 | **LangChain / CrewAI** | Execution frameworks (HOW to run tools) | Learning framework (HOW to think and improve) |
-| **ChatGPT memory** | Stores facts about user preferences | Tracks decision predictions, measures accuracy, compounds insights |
 
-**The key difference:** memory tools solve "my AI forgot what happened." Cognitive OS solves "my AI doesn't learn from what happened." These are complementary — you can use both.
+**The key difference:** memory tools solve "my AI forgot what happened." Cognitive OS solves "my AI doesn't learn from what happened." They're complementary.
 
 ---
 
-## Design Influences
+## Drivers (Platform Adapters)
 
-- **Boris Cherny** — compound engineering, structural correctness
-- **Thariq Shihipar** — spec-driven development, calibrated uncertainty
-- **UNIX philosophy** — small kernel, composable tools, everything is a file
-- **Operating system design** — boot sequence, memory protection, drivers
-- **Prediction-error learning** — computational neuroscience (Karl Friston's free energy principle)
+| Platform | Driver | Status |
+|---|---|---|
+| Claude Code | Skills (6 SKILL.md files) | Production — `/boot`, `/boris`, `/decide`, `/insight` |
+| Cursor | .cursorrules | Full rules with boot, anti-drift, Boris, decisions |
+| Codex | Task preamble template | Beta |
+| ChatGPT | Custom Instructions | Kernel summary in system prompt |
+| Any LLM | System prompt | "Read kernel.md at session start" |
 
 ---
 
@@ -231,42 +148,54 @@ Built and tested over 3 months across 5 production projects. Not theoretical.
 
 ```
 cognitive-os/
-├── README.md                 # You are here
-├── PROJECT-PLAN.md           # Roadmap and tracks
-├── templates/                # Start here — copy and customize
-│   ├── kernel.template.md
-│   ├── decisions.template.md
-│   ├── insight.template.md
-│   ├── MEMORY.template.md
-│   └── protocols/
-│       ├── boot.md
-│       ├── boris.md
-│       └── anti-drift.md
-├── drivers/                  # Platform-specific adapters
-│   ├── claude-code/          # Claude Code skills
-│   ├── cursor/               # Cursor rules
-│   └── codex/                # Codex instructions
-├── docs/                     # Deep dives
-│   ├── concepts.md           # Core concepts explained
-│   └── architecture.md       # Kernel/driver pattern
-├── examples/                 # Real-world usage (anonymized)
-│   └── solo-founder/         # Solo founder + AI CTO, 5 projects
-├── archive/                  # Design history (v0 drafts, early exploration)
-└── cog-update.sh             # Framework updater (protects user content)
+├── templates/                # Copy these to ~/cognitive-os/
+│   ├── kernel.template.md    # Identity + decision weights
+│   ├── decisions.template.md # Prediction-error tracking
+│   ├── insight.template.md   # Pattern discovery
+│   └── protocols/            # Boot, Boris, Anti-drift
+├── drivers/                  # Platform adapters
+│   ├── claude-code/          # 6 Claude Code skills
+│   ├── cursor/               # .cursorrules template
+│   └── codex/                # Task preamble template
+├── docs/                     # Concepts + architecture deep dives
+├── examples/                 # Real decisions with real numbers
+├── cog-update.sh             # Update framework, protect your data
+└── archive/                  # Design history
 ```
+
+## Staying Updated
+
+```bash
+./cog-update.sh          # Updates framework files, protects your kernel/decisions/insights
+./cog-update.sh --check  # Check for updates without applying
+```
+
+---
+
+## Why Not Just [X]?
+
+**"Why not a good system prompt?"** — Prompts are static. After 73 decisions and 51 insights, the OS knows things no prompt could contain.
+
+**"Why not LangChain / CrewAI?"** — Those run tools. This teaches thinking. They're complementary.
+
+**"Isn't this just markdown files?"** — A codebase is "just text files." The value is in prediction-error learning, fractal validation, and self-correction protocols that compound knowledge over time.
+
+---
+
+## Design Influences
+
+[Boris Cherny](https://borischerny.com/) (compound engineering) · [Thariq Shihipar](https://thariq.io/) (calibrated uncertainty) · UNIX philosophy · OS design (boot, drivers, memory protection) · [Karl Friston](https://en.wikipedia.org/wiki/Karl_Friston) (prediction-error learning / free energy principle)
 
 ---
 
 ## Contributing
 
-This is early. The methodology works for N=1 (one human-AI pair, 3 months, 5 projects). We need:
+This methodology works for N=1 (one human-AI pair, 3 months, 5 projects). We need:
 
-- **More users:** Try it, report what works and what doesn't
-- **More drivers:** Adapt OS to platforms we haven't covered
-- **More examples:** Share your kernel, decisions, insights (anonymized)
-- **Challenges:** Tell us where the framework breaks down
-
----
+- **More users** — try it, report what works and what doesn't
+- **More drivers** — adapt to platforms we haven't covered
+- **More examples** — share your kernel, decisions, insights (anonymized)
+- **Challenges** — tell us where the framework breaks down
 
 ## License
 

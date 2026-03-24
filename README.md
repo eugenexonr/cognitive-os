@@ -32,20 +32,21 @@ Edit `~/cognitive-os/kernel.md` — set your identity and priorities. Then tell 
 
 Memory tools remember WHAT happened. Cognitive OS learns WHY it mattered.
 
-```
-┌─────────────────────────────────────┐
-│  Your request                       │
-├─────────────────────────────────────┤
-│  COGNITIVE OS (this project)        │
-│  Learning · Self-repair · Identity  │
-├─────────────────────────────────────┤
-│  Any AI platform                    │
-│  Claude · GPT · Codex · Cursor ·    │
-│  LangChain · anything              │
-└─────────────────────────────────────┘
+```mermaid
+flowchart LR
+    B["🔄 Boot"] --> D["📝 Decide"]
+    D --> P["🎯 Predict\n(confidence %)"]
+    P --> O["👁️ Observe\noutcome"]
+    O --> C["⚖️ Calibrate\nprediction vs reality"]
+    C --> E["🧬 Evolve\nkernel weights"]
+    E --> B
+
+    AD["🛡️ Anti-Drift"] -.->|"source-or-(?)"| D
+    AD -.->|"re-read kernel"| P
+    AD -.->|"correction ≠ inversion"| C
 ```
 
-4 markdown files. 3 protocols. Zero dependencies. Model-agnostic.
+4 markdown files. 3 protocols. Zero dependencies. Works with any LLM.
 
 ## The Problem
 

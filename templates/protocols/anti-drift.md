@@ -6,9 +6,9 @@ AI models drift from established principles as conversation grows longer.
 Decisions made in previous sessions evaporate from context.
 The AI contradicts its own well-reasoned decisions without noticing.
 
-**Evidence (I031):** Vector recommended $400 Google Ads budget expecting 10-15 orders —
-directly contradicting decision D064 made 5 days earlier that concluded Google Ads is
-structurally cash-negative. The decision was FORGOTTEN, not overridden.
+**Evidence:** The AI recommended a $400 ad budget expecting 10-15 orders —
+directly contradicting its own decision made 5 days earlier that concluded paid ads are
+structurally cash-negative at this AOV. The decision was FORGOTTEN, not overridden.
 
 ## Core Principle
 
@@ -23,13 +23,15 @@ Binary checks under drift still work because they're trivial to evaluate.
 ## Binary Checks (always active)
 
 ### Check 1: Source-or-Question-Mark
-Every number, price, limit, threshold, or statistic must have a source:
+Every number, price, limit, threshold, statistic, **and key assumption** must have a source:
 - API call result → cite it
 - Documentation quote → cite it
 - User stated → cite it
+- Tested/measured → cite it
 - None of the above → write `(?)`
 
-`(?)` costs nothing. A wrong number formatted as fact costs trust.
+Applies to numbers ("$50/month") AND assumptions ("API is reliable", "users want X", "this will scale").
+`(?)` costs nothing. A wrong number formatted as fact costs trust. An unverified assumption formatted as fact costs decisions.
 
 ### Check 2: Re-Read Before Conclusions
 Before writing any message containing:

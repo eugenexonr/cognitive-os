@@ -80,9 +80,9 @@ When called during boot or explicitly ("process inbox"):
 
 ### Good Capture → Memory
 
-**User says:** "запомни — Railway worker env vars отдельные от API env vars"
+**User says:** "запомни — worker env vars отдельные от API env vars"
 
-**Classification:** Memory (project fact, Connect-specific)
+**Classification:** Memory (project fact, infrastructure-specific)
 
 **Action:** Write to memory file, type: project, update MEMORY.md
 

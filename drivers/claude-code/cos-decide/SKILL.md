@@ -56,23 +56,23 @@ Automatically suggest recording a decision when:
 ### Good Decision Record
 
 ```markdown
-## D052: Switch eSIM supplier from 2Sky to eSIM Go
-- **When:** 2026-02-27 | **Project:** Esimra Connect
-- **Context:** 2Sky API unreliable (3 outages in 2 weeks), no sandbox, manual ICCID management
-- **Primary weight:** W2 (Feedback Speed) — eSIM Go has sandbox, instant provisioning, REST API
-- **Decision:** Migrate to eSIM Go adapter, keep 2Sky as fallback
-- **Why:** eSIM Go API is modern REST, has sandbox, auto-provisions. 2Sky requires manual ICCID pools.
+## D052: Switch from Supplier A to Supplier B
+- **When:** Month 2 | **Project:** B2B Platform
+- **Context:** Supplier A API unreliable (3 outages in 2 weeks), no sandbox, manual resource management
+- **Primary weight:** W2 (Feedback Speed) — Supplier B has sandbox, instant provisioning, REST API
+- **Decision:** Migrate to Supplier B adapter, keep A as fallback
+- **Why:** Supplier B API is modern REST, has sandbox, auto-provisions. A requires manual pools.
 - **Prediction:** Full migration in 3 days, first live order within 1 week
 - **Confidence:** 90% — API docs are clear, adapter pattern makes swap isolated
 - **Outcome:** PENDING
-- **Revisit when:** First live order through eSIM Go
+- **Revisit when:** First live order through Supplier B
 ```
 
 ### Bad Decision Record (avoid)
 
 ```markdown
-## D099: Use eSIM Go
-- **Decision:** We'll use eSIM Go
+## D099: Use Supplier B
+- **Decision:** We'll use Supplier B
 - **Why:** It's better
 - **Prediction:** It will work
 - **Confidence:** 80%

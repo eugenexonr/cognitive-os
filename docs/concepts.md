@@ -17,7 +17,7 @@ The delta between prediction and outcome is where learning happens. Without expl
 
 **How it works in practice:**
 
-1. Make a decision: "Use eSIM Go as supplier"
+1. Make a decision: "Use Supplier B for the API integration"
 2. Record prediction: "Integration in 3 days" (confidence: 85%)
 3. Work happens...
 4. Record outcome: "First order in exactly 3 days" (confirmed)

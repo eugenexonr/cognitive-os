@@ -67,23 +67,23 @@ Append to `findings-log.jsonl` in this skill directory:
 
 ### Good Boris Output
 
-**Question:** "Why does the eSIM provisioning fail for Japan bundles?"
+**Question:** "Why does the order API fail for region-specific bundles?"
 
 **Pass 1 (Evidence):**
-- API logs: POST /v1/orders returns 422 for bundle `jp_1gb_7d`
-- eSIM Go docs: Japan requires `coverage_type: local` (not `region`)
+- API logs: POST /v1/orders returns 422 for bundle `region_1gb_7d`
+- Supplier docs: this region requires `coverage_type: local` (not `region`)
 - DB: bundle record has `coverage_type: region` — seeded incorrectly
 - No console errors, no network timeout — pure data issue
 
 **Pass 2 (Pattern):**
-- Surprising: coverage_type mismatch only for Japan, not other countries
+- Surprising: coverage_type mismatch only for one region, not others
 - Expected: seed script uses API response directly
-- Finding: seed script hardcodes `region` for all Asia bundles
+- Finding: seed script hardcodes `region` for all bundles in this group
 
 **Pass 3 (Conclusion):**
-- Root cause: seed script line 47, hardcoded `coverage_type: region` for Asia group
+- Root cause: seed script line 47, hardcoded `coverage_type: region` for entire group
 - Fix: use `bundle.coverage_type` from API response
-- Remaining uncertainty: are other coverage_type fields also hardcoded? → audit needed
+- Remaining uncertainty: are other fields also hardcoded? → audit needed
 
 ### Bad Boris Output (avoid)
 

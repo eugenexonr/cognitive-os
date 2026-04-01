@@ -37,6 +37,12 @@ Format: Expectation → Reality → Delta → Fractal Check → Status
      applied → integrated into kernel or workflow
      disproven → evidence showed it was wrong (keep for record) -->
 
+<!-- COMPACTION: When this file exceeds ~500 lines, run:
+     python ~/cognitive-os/scripts/compact_insights.py --execute
+     This graduates validated insights to insight-validated.md.
+     Active file keeps only observation/fixing insights.
+     Archive is append-only — validated insights are never lost. -->
+
 <!-- META INSIGHTS (cross-cutting patterns):
 
 ## META: [Pattern name]

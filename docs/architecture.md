@@ -48,11 +48,37 @@ A key constraint: AI models have limited context windows. Loading everything alw
 |---|---|---|
 | Kernel | Always | ~200 |
 | Memory index | At boot | ~100 |
-| Decision/insight files | At boot (by /boot skill) | ~2000-5000 |
+| Adherence audit | At boot (4 greps) | ~200 |
+| Decision/insight files (active) | At boot summary scan | ~500-1500 |
+| Decision/insight archives | On demand only | ~2000-5000 |
 | Rules | When editing matching files | ~100-300 per rule |
 | Skills | On demand (when triggered) | ~500-1000 per skill |
 
-Total at session start: ~2500 tokens. Traditional approach (everything in CLAUDE.md): 5000-10000 tokens, mostly irrelevant.
+Total at session start: ~1000-2000 tokens. Traditional approach (everything in CLAUDE.md): 5000-10000 tokens, mostly irrelevant.
+
+### Compaction
+
+As decisions and insights accumulate, the active files grow beyond what AI models can load efficiently. The OS includes compaction scripts that:
+
+- **decisions.md**: Archive resolved decisions → `decisions-archive.md`. Keep PENDING + last 10 resolved. Classify PENDING as ACTIVE/OVERDUE/STALE.
+- **insight.md**: Graduate validated insights → `insight-validated.md`. Keep observation/fixing insights active.
+
+```
+Before compaction:                    After compaction:
+decisions.md (1000 lines, 34K tokens) → decisions.md (400 lines, ~12K tokens)
+                                       → decisions-archive.md (600 lines, archive)
+
+insight.md (800 lines, 34K tokens)   → insight.md (400 lines, ~15K tokens)
+                                       → insight-validated.md (400 lines, archive)
+```
+
+Run when files exceed ~500 lines:
+```bash
+python ~/cognitive-os/scripts/compact_decisions.py --execute
+python ~/cognitive-os/scripts/compact_insights.py --execute
+```
+
+Both scripts are idempotent, do dry-run by default, and never delete data.
 
 ## Kernel / Driver Pattern
 
@@ -125,6 +151,12 @@ Session Start
 [Session End]
     └── Verify decisions.md and insight.md are current
         (should already be if write triggers worked)
+    │
+    ▼
+[Periodic Maintenance]
+    └── If decisions.md or insight.md > 500 lines:
+        ├── Run compact_decisions.py → archive resolved
+        └── Run compact_insights.py → graduate validated
 ```
 
 ### Decision data flow

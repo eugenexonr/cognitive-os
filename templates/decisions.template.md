@@ -41,3 +41,8 @@ Format: Decision → Context → Why → Prediction → Confidence → Outcome
      Over-confident (predicted 80%+, failed) = need more humility
      Under-confident (predicted <60%, succeeded) = trust judgment more
      If 3+ show same pattern → report to user -->
+
+<!-- COMPACTION: When this file exceeds ~500 lines, run:
+     python ~/cognitive-os/scripts/compact_decisions.py --execute
+     This archives resolved decisions and classifies PENDING as ACTIVE/OVERDUE/STALE.
+     Archive file: decisions-archive.md (append-only, never loses data). -->

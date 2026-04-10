@@ -20,6 +20,15 @@ Format: Decision → Context → Why → Prediction → Confidence → Outcome
 ## Session YYYY-MM-DD: [topic in 5 words]
 
 ## D001: [Short decision title]
+<!--fm
+id: D001
+status: pending
+project: [project name]
+weight: W[N]
+confidence: [X]
+created: YYYY-MM-DD
+depends_on: []
+fm-->
 - **When:** YYYY-MM-DD | **Project:** [project name]
 - **Context:** [What situation prompted this decision]
 - **Primary weight:** W[N] ([weight name]) — [why this weight was primary]

@@ -38,6 +38,15 @@ Automatically suggest recording a decision when:
 
 ```markdown
 ## D[NNN]: [Short decision title]
+<!--fm
+id: D[NNN]
+status: pending
+project: [project name]
+weight: W[N]
+confidence: [X]
+created: [YYYY-MM-DD]
+depends_on: []
+fm-->
 - **When:** [today's date] | **Project:** [project name]
 - **Context:** [What situation prompted this]
 - **Primary weight:** W[N] ([name]) — [why this weight]
@@ -49,6 +58,13 @@ Automatically suggest recording a decision when:
 - **Revisit when:** [Specific trigger]
 ```
 
+**Inline metadata (`<!--fm...fm-->`) rules:**
+- `depends_on`: list of decision IDs this relies on (e.g. `[D003, D020]`). Empty if standalone.
+- `status`: `pending` or `resolved`. Update when outcome is known.
+- `confidence`: integer 0-100, no % sign.
+- Old decisions without metadata work fine — compaction scripts fall back to regex.
+- Compaction uses `depends_on` for staleness propagation: when a dependency resolves, dependents get flagged for review.
+
 6. **Confirm with user** — show the entry, ask if anything needs adjustment
 
 ## Examples
@@ -57,6 +73,15 @@ Automatically suggest recording a decision when:
 
 ```markdown
 ## D052: Switch from Supplier A to Supplier B
+<!--fm
+id: D052
+status: pending
+project: B2B Platform
+weight: W2
+confidence: 90
+created: 2026-02-27
+depends_on: [D002]
+fm-->
 - **When:** Month 2 | **Project:** B2B Platform
 - **Context:** Supplier A API unreliable (3 outages in 2 weeks), no sandbox, manual resource management
 - **Primary weight:** W2 (Feedback Speed) — Supplier B has sandbox, instant provisioning, REST API

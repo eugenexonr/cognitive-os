@@ -1,12 +1,15 @@
 """Compact decisions.md: archive resolved decisions, classify PENDING.
 
-As decisions accumulate, the file grows beyond what AI models can load at boot.
-This script splits it into an active file (PENDING + recent resolved) and an
-append-only archive (old resolved decisions). Zero data loss guaranteed.
+Supports two formats:
+- Legacy (regex): decisions without inline metadata (D001-D074)
+- New (<!--fm-->): decisions with inline YAML metadata (D075+)
+
+Both formats coexist. Scripts parse <!--fm...fm--> when present,
+fall back to regex when not.
 
 Usage:
-    python compact_decisions.py                # dry-run: show what would happen
-    python compact_decisions.py --execute      # actually write files
+    python compact_decisions.py                # dry-run
+    python compact_decisions.py --execute      # apply
 
 Output:
     decisions.md          — PENDING + last N resolved + session headers
@@ -17,7 +20,8 @@ from __future__ import annotations
 
 import re
 import sys
-from dataclasses import dataclass
+import yaml
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
@@ -25,150 +29,183 @@ OS_ROOT = Path(__file__).resolve().parent.parent
 DECISIONS_PATH = OS_ROOT / "decisions.md"
 ARCHIVE_PATH = OS_ROOT / "decisions-archive.md"
 
-KEEP_RESOLVED = 10  # keep last N resolved in active file
+KEEP_RESOLVED = 10
 
-# Add project names that are abandoned/stale for your context.
-# Decisions referencing these projects will be classified as STALE.
-STALE_PROJECTS: set[str] = set()
-# Example: STALE_PROJECTS = {"OldProject", "DeprecatedTool"}
+# Customize: projects known to be stale/abandoned
+STALE_PROJECTS = set()  # Add your stale project names here
 
 
 @dataclass
 class Block:
-    """One section of decisions.md (decision, session header, or preamble)."""
-
     header: str
     lines: list[str]
     kind: str  # "preamble", "decision", "session"
-    decision_id: str  # "D001" or ""
+    decision_id: str
     outcome: str  # "PENDING", "resolved", ""
     pending_class: str  # "ACTIVE", "OVERDUE", "STALE", "BLOCKED", ""
     revisit_date: date | None
     project: str
+    weight: str
+    confidence: int  # 0-100 or -1
+    depends_on: list[str] = field(default_factory=list)
+    needs_review: bool = False
+    has_frontmatter: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Parsing
+# ---------------------------------------------------------------------------
+
+def _extract_fm(lines: list[str]) -> dict | None:
+    """Extract <!--fm ... fm--> YAML from block body."""
+    text = "\n".join(lines)
+    m = re.search(r"<!--fm\s*\n(.+?)\nfm-->", text, re.DOTALL)
+    if not m:
+        return None
+    try:
+        parsed = yaml.safe_load(m.group(1))
+        return parsed if isinstance(parsed, dict) else None
+    except yaml.YAMLError:
+        return None
 
 
 def parse_blocks(text: str) -> list[Block]:
-    """Parse decisions.md into structured blocks."""
+    """Split at ## boundaries, extract inline metadata per block."""
     lines = text.split("\n")
     blocks: list[Block] = []
-    current_header = ""
-    current_lines: list[str] = []
+    cur_header = ""
+    cur_lines: list[str] = []
 
     def flush():
-        nonlocal current_header, current_lines
-        if current_header or current_lines:
-            block = classify_block(current_header, current_lines)
-            blocks.append(block)
-        current_header = ""
-        current_lines = []
+        nonlocal cur_header, cur_lines
+        if cur_header or cur_lines:
+            fm = _extract_fm(cur_lines) if cur_header else None
+            blocks.append(_classify(cur_header, cur_lines, fm))
+        cur_header = ""
+        cur_lines = []
 
     for line in lines:
         if line.startswith("## "):
             flush()
-            current_header = line
+            cur_header = line
         else:
-            current_lines.append(line)
-
+            cur_lines.append(line)
     flush()
     return blocks
 
 
-def classify_block(header: str, lines: list[str]) -> Block:
-    """Classify a block as preamble, decision, or session."""
-    full_text = "\n".join(lines)
+# ---------------------------------------------------------------------------
+# Classification
+# ---------------------------------------------------------------------------
 
-    # Preamble (before first ## header)
+def _classify(header: str, lines: list[str], fm: dict | None) -> Block:
     if not header:
-        return Block(
-            header=header, lines=lines, kind="preamble",
-            decision_id="", outcome="", pending_class="",
-            revisit_date=None, project="",
-        )
+        return Block(header=header, lines=lines, kind="preamble",
+                     decision_id="", outcome="", pending_class="",
+                     revisit_date=None, project="", weight="", confidence=-1)
 
-    # Session header
-    if re.match(r"^## Session ", header):
-        return Block(
-            header=header, lines=lines, kind="session",
-            decision_id="", outcome="", pending_class="",
-            revisit_date=None, project="",
-        )
+    if re.match(r"^## (Session |PENDING Summary|Recent Resolved|OVERDUE|STALE)", header):
+        return Block(header=header, lines=lines, kind="session",
+                     decision_id="", outcome="", pending_class="",
+                     revisit_date=None, project="", weight="", confidence=-1)
 
-    # Compaction-generated sections (skip on re-run for idempotency)
-    if re.match(r"^## (PENDING Summary|Recent Resolved|OVERDUE|STALE)", header):
-        return Block(
-            header=header, lines=lines, kind="session",
-            decision_id="", outcome="", pending_class="",
-            revisit_date=None, project="",
-        )
+    did = ""
+    m = re.match(r"^## (D\d+)", header)
+    if m:
+        did = m.group(1)
 
-    # Decision
-    did_match = re.match(r"^## (D\d+)", header)
-    decision_id = did_match.group(1) if did_match else ""
+    if fm:
+        return _from_yaml(header, lines, fm, did)
+    return _from_regex(header, lines, did)
 
-    # Extract outcome
-    outcome = "resolved"
-    if "PENDING" in full_text and re.search(r"\*\*Outcome:\*\*.*PENDING", full_text):
-        outcome = "PENDING"
 
-    # Extract project
-    project = ""
-    proj_match = re.search(r"\*\*Project:\*\*\s*(.+?)(?:\n|$)", full_text)
-    if proj_match:
-        project = proj_match.group(1).strip()
+def _from_yaml(header: str, lines: list[str], fm: dict, did: str) -> Block:
+    outcome = "PENDING" if fm.get("status", "pending") == "pending" else "resolved"
+    project = str(fm.get("project", ""))
+    weight = str(fm.get("weight", ""))
+    confidence = int(fm.get("confidence", -1))
+    depends_on = fm.get("depends_on") or []
+    if isinstance(depends_on, str):
+        depends_on = [depends_on]
 
-    # Extract revisit date (try "Month YYYY" format)
     revisit_date = None
-    revisit_match = re.search(
-        r"[Rr]evisit.*?(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})",
-        full_text,
-    )
-    if revisit_match:
+    rd = fm.get("revisit")
+    if isinstance(rd, date):
+        revisit_date = rd
+    elif rd:
         try:
-            revisit_date = datetime.strptime(
-                f"{revisit_match.group(1)} {revisit_match.group(2)}",
-                "%B %Y",
-            ).date()
+            revisit_date = datetime.strptime(str(rd), "%Y-%m-%d").date()
         except ValueError:
             pass
 
-    # Classify PENDING
-    pending_class = ""
-    if outcome == "PENDING":
-        pending_class = classify_pending(project, revisit_date, full_text)
+    full_text = "\n".join(lines)
+    pc = _classify_pending(project, revisit_date, full_text) if outcome == "PENDING" else ""
 
-    return Block(
-        header=header, lines=lines, kind="decision",
-        decision_id=decision_id, outcome=outcome,
-        pending_class=pending_class, revisit_date=revisit_date,
-        project=project,
-    )
+    return Block(header=header, lines=lines, kind="decision",
+                 decision_id=fm.get("id", did) or did,
+                 outcome=outcome, pending_class=pc,
+                 revisit_date=revisit_date, project=project,
+                 weight=weight, confidence=confidence,
+                 depends_on=depends_on, has_frontmatter=True)
 
 
-def classify_pending(project: str, revisit_date: date | None, text: str) -> str:
-    """Classify a PENDING decision: ACTIVE, OVERDUE, STALE, BLOCKED."""
+def _from_regex(header: str, lines: list[str], did: str) -> Block:
+    full = "\n".join(lines)
+
+    outcome = "resolved"
+    if re.search(r"\*\*Outcome:\*\*.*PENDING", full):
+        outcome = "PENDING"
+
+    project = ""
+    pm = re.search(r"\*\*Project:\*\*\s*(.+?)(?:\n|$)", full)
+    if pm:
+        project = pm.group(1).strip()
+
+    weight = ""
+    wm = re.search(r"\bW([0-5])\b", full)
+    if wm:
+        weight = f"W{wm.group(1)}"
+
+    confidence = -1
+    cm = re.search(r"\*\*Confidence:\*\*\s*(\d+)%?", full)
+    if cm:
+        confidence = int(cm.group(1))
+
+    revisit_date = None
+    rm = re.search(
+        r"[Rr]evisit.*?(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})",
+        full)
+    if rm:
+        try:
+            revisit_date = datetime.strptime(f"{rm.group(1)} {rm.group(2)}", "%B %Y").date()
+        except ValueError:
+            pass
+
+    pc = _classify_pending(project, revisit_date, full) if outcome == "PENDING" else ""
+
+    return Block(header=header, lines=lines, kind="decision",
+                 decision_id=did, outcome=outcome, pending_class=pc,
+                 revisit_date=revisit_date, project=project,
+                 weight=weight, confidence=confidence)
+
+
+def _classify_pending(project: str, revisit_date: date | None, text: str) -> str:
     today = date.today()
 
-    # Stale: project abandoned or context changed
     for stale in STALE_PROJECTS:
         if stale.lower() in project.lower() or stale.lower() in text.lower():
             return "STALE"
 
-    # Overdue: revisit date (month-level) has passed
     if revisit_date and revisit_date < today.replace(day=1):
         return "OVERDUE"
 
-    # Check all month references in "Revisit when" context
-    month_names = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December",
-    ]
-    for i, month_name in enumerate(month_names, 1):
-        pattern = rf"[Rr]evisit.*{month_name}\s+(\d{{4}})"
-        m = re.search(pattern, text)
+    months = ["January", "February", "March", "April", "May", "June",
+              "July", "August", "September", "October", "November", "December"]
+    for i, name in enumerate(months, 1):
+        m = re.search(rf"[Rr]evisit.*{name}\s+(\d{{4}})", text)
         if m:
             try:
-                revisit = date(int(m.group(1)), i, 1)
-                if revisit < today.replace(day=1):
+                if date(int(m.group(1)), i, 1) < today.replace(day=1):
                     return "OVERDUE"
             except ValueError:
                 pass
@@ -176,8 +213,24 @@ def classify_pending(project: str, revisit_date: date | None, text: str) -> str:
     return "ACTIVE"
 
 
+# ---------------------------------------------------------------------------
+# Staleness propagation
+# ---------------------------------------------------------------------------
+
+def propagate_staleness(decisions: list[Block]) -> None:
+    """Flag pending decisions whose dependency has been resolved."""
+    resolved_ids = {d.decision_id for d in decisions if d.outcome == "resolved" and d.decision_id}
+    for d in decisions:
+        if d.outcome == "PENDING" and d.depends_on:
+            if any(dep in resolved_ids for dep in d.depends_on):
+                d.needs_review = True
+
+
+# ---------------------------------------------------------------------------
+# Output
+# ---------------------------------------------------------------------------
+
 def block_to_text(block: Block) -> str:
-    """Render block back to markdown."""
     parts = []
     if block.header:
         parts.append(block.header)
@@ -186,7 +239,6 @@ def block_to_text(block: Block) -> str:
 
 
 def compact(blocks: list[Block], dry_run: bool = True) -> dict:
-    """Perform compaction, return stats."""
     preamble = [b for b in blocks if b.kind == "preamble"]
     sessions = [b for b in blocks if b.kind == "session"]
     decisions = [b for b in blocks if b.kind == "decision"]
@@ -194,138 +246,114 @@ def compact(blocks: list[Block], dry_run: bool = True) -> dict:
     resolved = [d for d in decisions if d.outcome == "resolved"]
     pending = [d for d in decisions if d.outcome == "PENDING"]
 
-    # Classify pending
+    propagate_staleness(decisions)
+    needs_review = [d for d in pending if d.needs_review]
     active = [d for d in pending if d.pending_class == "ACTIVE"]
     overdue = [d for d in pending if d.pending_class == "OVERDUE"]
     stale = [d for d in pending if d.pending_class == "STALE"]
     blocked = [d for d in pending if d.pending_class == "BLOCKED"]
+    with_fm = [d for d in decisions if d.has_frontmatter]
 
-    # Keep last N resolved in active file
     archive_resolved = resolved[:-KEEP_RESOLVED] if len(resolved) > KEEP_RESOLVED else []
     keep_resolved = resolved[-KEEP_RESOLVED:] if len(resolved) > KEEP_RESOLVED else resolved
 
     stats = {
-        "total_decisions": len(decisions),
-        "resolved": len(resolved),
-        "pending_total": len(pending),
-        "pending_active": len(active),
-        "pending_overdue": len(overdue),
-        "pending_stale": len(stale),
-        "pending_blocked": len(blocked),
-        "archive_count": len(archive_resolved),
-        "keep_resolved_count": len(keep_resolved),
-        "sessions": len(sessions),
+        "total": len(decisions), "resolved": len(resolved),
+        "pending": len(pending), "active": len(active),
+        "overdue": len(overdue), "stale": len(stale),
+        "blocked": len(blocked), "needs_review": len(needs_review),
+        "with_fm": len(with_fm), "archive": len(archive_resolved),
+        "keep": len(keep_resolved), "sessions": len(sessions),
     }
 
     if dry_run:
         return stats
 
-    # Build active file
-    active_parts = []
-
-    # Preamble
+    # --- Build active file ---
+    out: list[str] = []
     for b in preamble:
-        active_parts.append(block_to_text(b))
+        out.append(block_to_text(b))
 
-    # Compaction notice
-    active_parts.append("")
-    active_parts.append(f"> **Compacted {date.today()}**: {len(archive_resolved)} resolved decisions archived to `decisions-archive.md`. {len(keep_resolved)} recent resolved kept here.")
-    active_parts.append("")
+    out.append("")
+    out.append(f"> **Compacted {date.today()}**: {len(archive_resolved)} resolved archived. {len(keep_resolved)} recent resolved kept.")
+    out.append("")
+    out.append("## PENDING Summary")
+    out.append(f"- **ACTIVE:** {len(active)}")
+    out.append(f"- **OVERDUE:** {len(overdue)}")
+    out.append(f"- **STALE:** {len(stale)}")
+    if needs_review:
+        out.append(f"- **NEEDS REVIEW:** {len(needs_review)} (dependency resolved)")
+    out.append("")
 
-    # PENDING classification summary
-    active_parts.append("## PENDING Summary")
-    active_parts.append(f"- **ACTIVE:** {len(active)} (waiting for event/data)")
-    active_parts.append(f"- **OVERDUE:** {len(overdue)} (revisit date passed)")
-    active_parts.append(f"- **STALE:** {len(stale)} (context changed, likely irrelevant)")
-    active_parts.append("")
+    def _label(d: Block) -> str:
+        return d.header.split(": ", 1)[-1] if ": " in d.header else d.header
 
     if overdue:
-        active_parts.append("### OVERDUE — need resolution")
+        out.append("### OVERDUE")
         for d in overdue:
-            label = d.header.split(": ", 1)[-1] if ": " in d.header else d.header
-            active_parts.append(f"- **{d.decision_id}**: {label}")
-        active_parts.append("")
+            out.append(f"- **{d.decision_id}**: {_label(d)}")
+        out.append("")
+
+    if needs_review:
+        out.append("### NEEDS REVIEW — dependency resolved")
+        for d in needs_review:
+            rdeps = [dep for dep in d.depends_on if dep in {r.decision_id for r in resolved}]
+            out.append(f"- **{d.decision_id}**: {_label(d)} (deps: {', '.join(rdeps)})")
+        out.append("")
 
     if stale:
-        active_parts.append("### STALE — consider closing")
+        out.append("### STALE")
         for d in stale:
-            label = d.header.split(": ", 1)[-1] if ": " in d.header else d.header
-            active_parts.append(f"- **{d.decision_id}**: {label}")
-        active_parts.append("")
+            out.append(f"- **{d.decision_id}**: {_label(d)}")
+        out.append("")
 
-    # Session headers (keep recent ones)
-    recent_sessions = sessions[-5:]
-    for s in recent_sessions:
-        active_parts.append(block_to_text(s))
+    for s in sessions[-5:]:
+        out.append(block_to_text(s))
 
-    # All PENDING decisions (full text, tagged)
-    active_parts.append("")
-    active_parts.append("---")
-    active_parts.append("")
-
+    out.extend(["", "---", ""])
     for d in pending:
-        tag = f" [{d.pending_class}]" if d.pending_class else ""
-        tagged_header = d.header.rstrip() + tag
-        active_parts.append(tagged_header)
-        active_parts.extend(d.lines)
+        tag = f" [{d.pending_class}]"
+        if d.needs_review:
+            tag += " [NEEDS REVIEW]"
+        h = re.sub(r"\s*\[(ACTIVE|OVERDUE|STALE|BLOCKED|NEEDS REVIEW)\]", "", d.header.rstrip())
+        out.append(h + tag)
+        out.extend(d.lines)
 
-    # Last N resolved (full text)
-    active_parts.append("")
-    active_parts.append("---")
-    active_parts.append(f"## Recent Resolved (last {KEEP_RESOLVED})")
-    active_parts.append("")
-
+    out.extend(["", "---", f"## Recent Resolved (last {KEEP_RESOLVED})", ""])
     for d in keep_resolved:
-        active_parts.append(block_to_text(d))
+        out.append(block_to_text(d))
 
-    # Build archive file (append-only)
-    archive_parts = []
+    # --- Archive ---
+    arch: list[str] = []
     if ARCHIVE_PATH.exists():
-        archive_parts.append(ARCHIVE_PATH.read_text(encoding="utf-8").rstrip())
-        archive_parts.append("")
+        arch.append(ARCHIVE_PATH.read_text(encoding="utf-8").rstrip())
+        arch.append("")
     else:
-        archive_parts.append("# Decision Archive")
-        archive_parts.append("")
-        archive_parts.append("Resolved decisions moved from decisions.md by compaction.")
-        archive_parts.append("")
-        archive_parts.append("---")
-        archive_parts.append("")
+        arch.extend(["# Decision Archive", "", "Resolved decisions archived by compaction.", "", "---", ""])
 
-    archive_parts.append(f"## Archived {date.today()}")
-    archive_parts.append("")
+    arch.extend([f"## Archived {date.today()}", ""])
     for d in archive_resolved:
-        archive_parts.append(block_to_text(d))
+        arch.append(block_to_text(d))
 
-    # Write files
-    DECISIONS_PATH.write_text("\n".join(active_parts), encoding="utf-8")
-    ARCHIVE_PATH.write_text("\n".join(archive_parts), encoding="utf-8")
-
+    DECISIONS_PATH.write_text("\n".join(out), encoding="utf-8")
+    ARCHIVE_PATH.write_text("\n".join(arch), encoding="utf-8")
     return stats
 
 
 def main():
     dry_run = "--execute" not in sys.argv
-
     text = DECISIONS_PATH.read_text(encoding="utf-8")
     blocks = parse_blocks(text)
     stats = compact(blocks, dry_run=dry_run)
 
     mode = "DRY RUN" if dry_run else "EXECUTED"
     print(f"=== Compaction {mode} ===")
-    print(f"Total decisions:     {stats['total_decisions']}")
-    print(f"  Resolved:          {stats['resolved']}")
-    print(f"  PENDING total:     {stats['pending_total']}")
-    print(f"    ACTIVE:          {stats['pending_active']}")
-    print(f"    OVERDUE:         {stats['pending_overdue']}")
-    print(f"    STALE:           {stats['pending_stale']}")
-    print(f"    BLOCKED:         {stats['pending_blocked']}")
-    print(f"Session headers:     {stats['sessions']}")
-    print(f"---")
-    print(f"Archive (move out):  {stats['archive_count']} resolved")
-    print(f"Keep in active:      {stats['keep_resolved_count']} resolved + {stats['pending_total']} PENDING")
-
+    print(f"Total: {stats['total']} | Resolved: {stats['resolved']} | PENDING: {stats['pending']}")
+    print(f"  ACTIVE={stats['active']} OVERDUE={stats['overdue']} STALE={stats['stale']} BLOCKED={stats['blocked']}")
+    print(f"  Needs review: {stats['needs_review']} | With frontmatter: {stats['with_fm']}")
+    print(f"Archive: {stats['archive']} | Keep resolved: {stats['keep']}")
     if dry_run:
-        print("\nRun with --execute to apply changes.")
+        print("\nRun with --execute to apply.")
 
 
 if __name__ == "__main__":
